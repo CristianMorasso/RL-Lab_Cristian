@@ -58,6 +58,18 @@ def findMinimum( objective_function, n_iter=5000 ):
 	#
 	# YOUR CODE HERE!
 	#
+	for _ in range(3000):
+    
+		with tf.GradientTape() as tape:
+
+			# Write the objective function on the tape
+			objective = objective_function(x, y)
+
+			# Compute the gradient with respect to the given variables
+			grad = tape.gradient(objective, [x, y])
+
+			# Apply the gradient
+			optimizer.apply_gradients( zip(grad, [x, y]) )
 	return x.numpy(), y.numpy()
 
 
@@ -81,6 +93,11 @@ def createDNN( nInputs, nOutputs, nLayer, nNodes ):
 	#
 	# YOUR CODE HERE!
 	#
+	
+	model.add(Dense(nNodes, input_dim=nInputs, activation="relu")) 
+	for _ in range(nLayer-1):
+		model.add(Dense(nNodes, activation="relu"))
+	model.add(Dense(nOutputs, activation="linear"))
 	return model
 
 
@@ -102,6 +119,11 @@ def collect_random_trajectories( env, num_episodes=10 ):
 
 	for _ in range(num_episodes):
 		state = env.random_initial_state()
+		action =  np.random.randint(len(env.available_action[state]))
+		next_state = env.sample(action, state)
+		reward = env.R[next_state]
+		memory_buffer.append([state, action, next_state, reward])
+		
 		#
 		# YOUR CODE HERE!
 		#
@@ -129,10 +151,24 @@ def trainDNN( model, memory_buffer, epoch=20 ):
 	# Preprocess data
 	dataset_input = np.vstack(memory_buffer[:, 2])
 	target = np.vstack(memory_buffer[:, 3])
-
+	optimizer = tf.keras.optimizers.SGD( learning_rate=0.001 )
 	#
 	# YOUR CODE HERE!
 	#
+	for _ in range(epoch):
+    
+		with tf.GradientTape() as tape:
+			
+			# Write the objective function on the tape
+			idx = np.random.randint(dataset_input.shape[0], size=128 )
+			objective = mse( model, dataset_input[idx], target[idx] )
+
+			# Compute the gradient with respect to the given variables
+			grad = tape.gradient(objective, model.trainable_variables )
+
+			# Apply the gradient
+			optimizer.apply_gradients( zip(grad, model.trainable_variables) )
+        
 	return model
 
 

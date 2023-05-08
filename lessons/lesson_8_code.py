@@ -31,6 +31,10 @@ def createDNN( nInputs, nOutputs, nLayer, nNodes ):
 	#
 	# YOUR CODE HERE!
 	#
+	model.add(Dense(nNodes, input_dim=nInputs, activation="relu")) 
+	for _ in range(1, nLayer):
+		model.add(Dense(nNodes, activation="relu"))
+	model.add(Dense(nOutputs, activation="linear"))
 	return model
 
 
@@ -68,31 +72,37 @@ def training_loop( env, neural_net, updateRule, eps=1, episodes=100, updates=1 )
 	"""
 
 	#TODO: initialize the optimizer 
-	optimizer = None 
+	optimizer = tf.keras.optimizers.Adam( learning_rate=0.001 ) 
 	rewards_list, memory_buffer = [], collections.deque( maxlen=1000 )
 	averaged_rewards = []
 	for ep in range(episodes):
 
 		#TODO: reset the environment and obtain the initial state
-		state = None 
+		state = env.reset()[0]
+		state=state.reshape(-1,4) #None 
+		#state = state.reshape(-1,4)
 		ep_reward = 0
 		while True:
 
 			#TODO: select the action to perform
-			action = None 
+			action = env.action_space.sample()
 
 			#TODO: Perform the action, store the data in the memory buffer and update the reward
-			memory_buffer.append( None )
-			ep_reward += None
+			next_state, reward, done, truncated, _ = env.step(action)
+			next_state = next_state.reshape(-1,4)
+			memory_buffer.append([state, action, next_state, reward, done])
+			#memory_buffer.append( None )
+			ep_reward += reward
 
 			# Perform the actual training
 			updateRule( neural_net, memory_buffer, optimizer )
 
 			#TODO: exit condition for the episode
-			if False: break
+			if done or truncated: break
 
 			#TODO: update the current state
-			state = None
+			state = next_state
+			
 
 		# Update the reward list to return
 		rewards_list.append( ep_reward )
@@ -118,14 +128,23 @@ def DQNUpdate( neural_net, memory_buffer, optimizer, batch_size=32, gamma=0.99 )
 	for idx in indices: 
 
 		#TODO: extract data from the buffer 
-		state, action, reward, next_state, done = None, None, None, None, None
-
+		state, action, next_state, reward, done = memory_buffer[idx]
 		#TODO: compute the target for the training
-		target = None
+		target = neural_net(state).numpy()
+		if done:
+			target[0][action] = reward
+		else:
+			max_q = max(neural_net(next_state).numpy()[0])
+			target[0][action] = reward + (max_q * gamma)
 
 		#TODO: compute the gradient and perform the backpropagation step
 		with tf.GradientTape() as tape:
 			objective = mse( neural_net, state, target )
+			# Compute the gradient with respect to the given variables
+			grad = tape.gradient(objective, neural_net.trainable_variables )
+
+			# Apply the gradient
+			optimizer.apply_gradients( zip(grad, neural_net.trainable_variables) )
 
 
 def main():
